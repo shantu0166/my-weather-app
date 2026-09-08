@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farm WeatherNext</title>
+  <style>
+    body { font-family: sans-serif; background: #f0fdf4; margin: 0; padding: 16px; color: #1f2937; }
+    .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    .safe { background: #dcfce7; border-left: 6px solid #16a34a; }
+    .caution { background: #fef3c7; border-left: 6px solid #d97706; }
+    h2 { margin: 0 0 8px 0; font-size: 1.2rem; }
+    .temp { font-size: 2rem; font-weight: bold; margin: 8px 0; }
+    .row { display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding: 8px 0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+  <div id="statusCard" class="card">
+    <h2 id="statusTitle">Loading forecast...</h2>
+    <div id="statusDetails">Fetching WeatherNext data...</div>
+  </div>
+
+  <div class="card">
+    <div class="temp" id="tempDisplay">--°C</div>
+    <div id="coordsText">Location: 19.8762° N, 75.3433° E</div>
+  </div>
+
+  <div class="card">
+    <h2>Next 24 Hours</h2>
+    <div id="forecastList"></div>
+  </div>
+
+  <script>
+    // Replace with your field coordinates
+    const LAT = 19.8762;
+    const LON = 75.3433;
+
+    async function getForecast() {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&models=google_weathernext_2&timezone=auto`;
+      
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const h = data.hourly;
+
+        const curTemp = h.temperature_2m[0];
+        const curRain = h.precipitation[0];
+        const curWind = h.wind_speed_10m[0];
+        const curHum = h.relative_humidity_2m[0];
+
+        // Agricultural spraying rule
+        const isSafe = (curWind < 15 && curRain === 0);
+        const statusCard = document.getElementById('statusCard');
+        statusCard.className = `card ${isSafe ? 'safe' : 'caution'}`;
+        document.getElementById('statusTitle').innerText = isSafe ? 'Spraying Window: SAFE' : 'Spraying Window: CAUTION';
+        document.getElementById('statusDetails').innerText = `Wind: ${curWind} km/h | Rain: ${curRain} mm | Humidity: ${curHum}%`;
+
+        document.getElementById('tempDisplay').innerText = `${curTemp}°C`;
+
+        let listHtml = '';
+        for(let i = 0; i < 24; i++) {
+          const time = h.time[i].split('T')[1];
+          listHtml += `
+            <div class="row">
+              <span><b>${time}</b></span>
+              <span>${h.temperature_2m[i]}°C | Rain: ${h.precipitation[i]} mm</span>
+              <span>${h.wind_speed_10m[i]} km/h</span>
+            </div>`;
+        }
+        document.getElementById('forecastList').innerHTML = listHtml;
+      } catch (err) {
+        document.getElementById('statusTitle').innerText = 'Error loading forecast';
+      }
+    }
+
+    getForecast();
+  </script>
+</body>
+</html>
