@@ -5,25 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Farm WeatherNext</title>
   <style>
-    body { font-family: sans-serif; background: #f0fdf4; margin: 0; padding: 16px; color: #1f2937; }
-    .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f0fdf4; margin: 0; padding: 16px; color: #1f2937; }
+    .card { background: white; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); }
     .safe { background: #dcfce7; border-left: 6px solid #16a34a; }
     .caution { background: #fef3c7; border-left: 6px solid #d97706; }
-    h2 { margin: 0 0 8px 0; font-size: 1.2rem; }
-    .temp { font-size: 2rem; font-weight: bold; margin: 8px 0; }
-    .row { display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding: 8px 0; font-size: 0.9rem; }
+    h2 { margin: 0 0 8px 0; font-size: 1.25rem; font-weight: 700; }
+    .temp { font-size: 2.2rem; font-weight: 800; margin: 8px 0; color: #111827; }
+    .row { display: flex; justify-content: space-between; border-bottom: 1px solid #f3f4f6; padding: 10px 0; font-size: 0.95rem; }
   </style>
 </head>
 <body>
 
   <div id="statusCard" class="card">
     <h2 id="statusTitle">Loading forecast...</h2>
-    <div id="statusDetails">Connecting to WeatherNext 2...</div>
+    <div id="statusDetails">Connecting to weather models...</div>
   </div>
 
   <div class="card">
     <div class="temp" id="tempDisplay">--°C</div>
-    <div id="coordsText">Location: 19.8762° N, 75.3433° E (WeatherNext)</div>
+    <div id="coordsText">Location: 19.8762° N, 75.3433° E</div>
   </div>
 
   <div class="card">
@@ -36,40 +36,49 @@
     const LON = 75.3433;
 
     async function getForecast() {
-      // Points to Open-Meteo's WeatherNext endpoint
-      const url = `https://api.open-meteo.com/v1/ensemble?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=google_weathernext2_ensemble&timezone=auto`;
-      
+      // Primary URL uses the dedicated ensemble subdomain
+      const ensembleUrl = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=google_weathernext2_ensemble&timezone=auto`;
+      const fallbackUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,precipitation,wind_speed_10m&timezone=auto`;
+
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        let res = await fetch(ensembleUrl);
+        let isEnsemble = true;
+
+        if (!res.ok) {
+          res = await fetch(fallbackUrl);
+          isEnsemble = false;
+        }
+
+        if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
+
         const data = await res.json();
         const h = data.hourly;
 
-        // Pull the primary member forecast data
-        const curTemp = (h.temperature_2m_member01 || h.temperature_2m)[0];
-        const curRain = (h.precipitation_member01 || h.precipitation)[0];
-        const curWind = (h.wind_speed_10m_member01 || h.wind_speed_10m)[0];
+        // Support both ensemble member keys and standard keys
+        const temps = h.temperature_2m_member01 || h.temperature_2m;
+        const rains = h.precipitation_member01 || h.precipitation;
+        const winds = h.wind_speed_10m_member01 || h.wind_speed_10m;
+
+        const curTemp = temps[0];
+        const curRain = rains[0];
+        const curWind = winds[0];
 
         const isSafe = (curWind < 15 && curRain === 0);
         const statusCard = document.getElementById('statusCard');
         statusCard.className = `card ${isSafe ? 'safe' : 'caution'}`;
         document.getElementById('statusTitle').innerText = isSafe ? 'Spraying Window: SAFE' : 'Spraying Window: CAUTION';
-        document.getElementById('statusDetails').innerText = `Wind: ${curWind} km/h | Rain: ${curRain} mm`;
+        document.getElementById('statusDetails').innerText = `Wind: ${curWind} km/h | Rain: ${curRain} mm (Model: ${isEnsemble ? 'WeatherNext 2' : 'High-Res Blend'})`;
 
         document.getElementById('tempDisplay').innerText = `${curTemp}°C`;
 
         let listHtml = '';
         for(let i = 0; i < 24; i++) {
           const time = h.time[i].split('T')[1];
-          const temp = (h.temperature_2m_member01 || h.temperature_2m)[i];
-          const rain = (h.precipitation_member01 || h.precipitation)[i];
-          const wind = (h.wind_speed_10m_member01 || h.wind_speed_10m)[i];
-
           listHtml += `
             <div class="row">
               <span><b>${time}</b></span>
-              <span>${temp}°C | Rain: ${rain} mm</span>
-              <span>${wind} km/h</span>
+              <span>${temps[i]}°C | Rain: ${rains[i]} mm</span>
+              <span>${winds[i]} km/h</span>
             </div>`;
         }
         document.getElementById('forecastList').innerHTML = listHtml;
