@@ -3,92 +3,258 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Farm WeatherNext</title>
+  <title>AgriNext Dashboard</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #f0fdf4; margin: 0; padding: 16px; color: #1f2937; }
-    .card { background: white; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); }
-    .safe { background: #dcfce7; border-left: 6px solid #16a34a; }
-    .caution { background: #fef3c7; border-left: 6px solid #d97706; }
-    h2 { margin: 0 0 8px 0; font-size: 1.25rem; font-weight: 700; }
-    .temp { font-size: 2.2rem; font-weight: 800; margin: 8px 0; color: #111827; }
-    .row { display: flex; justify-content: space-between; border-bottom: 1px solid #f3f4f6; padding: 10px 0; font-size: 0.95rem; }
+    :root {
+      --bg: #0b1329;
+      --card-bg: rgba(23, 37, 84, 0.55);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --text: #f8fafc;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --orange: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; position: relative; }
+
+    /* Animated Weather Canvas */
+    #fx-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1; }
+
+    .app { position: relative; z-index: 2; max-width: 520px; margin: 0 auto; padding: 18px; }
+
+    /* Header */
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .location-tag { font-size: 0.85rem; color: #94a3b8; letter-spacing: 0.5px; }
+    .badge { background: rgba(56, 189, 248, 0.15); border: 1px solid var(--accent); color: var(--accent); font-size: 0.72rem; padding: 3px 8px; border-radius: 99px; font-weight: 600; }
+
+    /* Cards */
+    .glass { background: var(--card-bg); backdrop-filter: blur(16px); border: 1px solid var(--card-border); border-radius: 18px; padding: 18px; margin-bottom: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+    
+    /* Spray Status Indicator */
+    .spray-card { display: flex; align-items: center; justify-content: space-between; border-left: 5px solid var(--green); }
+    .spray-card.warn { border-left-color: var(--orange); }
+    .status-text h3 { font-size: 1.05rem; font-weight: 700; }
+    .status-text p { font-size: 0.8rem; color: #cbd5e1; margin-top: 2px; }
+
+    /* Main Temp */
+    .hero { text-align: center; padding: 22px 10px; }
+    .main-temp { font-size: 3.8rem; font-weight: 800; line-height: 1; letter-spacing: -2px; }
+    .weather-desc { font-size: 1.1rem; color: #cbd5e1; margin-top: 6px; font-weight: 500; }
+
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .metric { background: rgba(255,255,255,0.04); border-radius: 12px; padding: 10px; text-align: center; }
+    .metric span { display: block; font-size: 0.75rem; color: #94a3b8; }
+    .metric b { font-size: 1rem; margin-top: 3px; display: block; }
+
+    /* Switch Tabs */
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab { flex: 1; text-align: center; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #94a3b8; }
+    .tab.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+
+    /* Forecast Lists */
+    .list { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto; }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 10px; font-size: 0.85rem; }
+    .row b { font-size: 0.9rem; }
+    .row .rain-vol { color: #38bdf8; }
   </style>
 </head>
 <body>
+  <canvas id="fx-canvas"></canvas>
 
-  <div id="statusCard" class="card">
-    <h2 id="statusTitle">Loading forecast...</h2>
-    <div id="statusDetails">Connecting to weather models...</div>
-  </div>
+  <div class="app">
+    <div class="top-bar">
+      <div>
+        <h2 id="locName">Sambhajinagar</h2>
+        <div class="location-tag" id="locCoords">19.8762° N, 75.3433° E</div>
+      </div>
+      <span class="badge">WeatherNext</span>
+    </div>
 
-  <div class="card">
-    <div class="temp" id="tempDisplay">--°C</div>
-    <div id="coordsText">Location: 19.8762° N, 75.3433° E</div>
-  </div>
+    <div class="glass spray-card" id="sprayBox">
+      <div class="status-text">
+        <h3 id="sprayTitle">Analyzing Conditions...</h3>
+        <p id="spraySub">Checking rain & wind threshold</p>
+      </div>
+      <div style="font-size: 1.8rem;" id="sprayIcon">🌱</div>
+    </div>
 
-  <div class="card">
-    <h2>Next 24 Hours</h2>
-    <div id="forecastList"></div>
+    <div class="glass hero">
+      <div class="main-temp" id="tempDisplay">--°C</div>
+      <div class="weather-desc" id="weatherCond">Connecting...</div>
+
+      <div class="metrics-grid">
+        <div class="metric"><span>Precipitation</span><b id="mRain">-- mm</b></div>
+        <div class="metric"><span>Surface Wind</span><b id="mWind">-- km/h</b></div>
+        <div class="metric"><span>Humidity</span><b id="mHum">--%</b></div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tabHourly" onclick="switchView('hourly')">Hourly (Next 24h)</div>
+      <div class="tab" id="tabDaily" onclick="switchView('daily')">7-Day Outlook</div>
+    </div>
+
+    <div class="glass" style="padding: 12px;">
+      <div class="list" id="forecastContainer"></div>
+    </div>
   </div>
 
   <script>
     const LAT = 19.8762;
     const LON = 75.3433;
+    let globalData = null;
+    let activeTab = 'hourly';
 
-    async function getForecast() {
-      // Primary URL uses the dedicated ensemble subdomain
-      const ensembleUrl = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=google_weathernext2_ensemble&timezone=auto`;
-      const fallbackUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,precipitation,wind_speed_10m&timezone=auto`;
+    // FX Canvas setup
+    const canvas = document.getElementById('fx-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let activeFx = 'clear';
 
-      try {
-        let res = await fetch(ensembleUrl);
-        let isEnsemble = true;
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
 
-        if (!res.ok) {
-          res = await fetch(fallbackUrl);
-          isEnsemble = false;
-        }
-
-        if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
-
-        const data = await res.json();
-        const h = data.hourly;
-
-        // Support both ensemble member keys and standard keys
-        const temps = h.temperature_2m_member01 || h.temperature_2m;
-        const rains = h.precipitation_member01 || h.precipitation;
-        const winds = h.wind_speed_10m_member01 || h.wind_speed_10m;
-
-        const curTemp = temps[0];
-        const curRain = rains[0];
-        const curWind = winds[0];
-
-        const isSafe = (curWind < 15 && curRain === 0);
-        const statusCard = document.getElementById('statusCard');
-        statusCard.className = `card ${isSafe ? 'safe' : 'caution'}`;
-        document.getElementById('statusTitle').innerText = isSafe ? 'Spraying Window: SAFE' : 'Spraying Window: CAUTION';
-        document.getElementById('statusDetails').innerText = `Wind: ${curWind} km/h | Rain: ${curRain} mm (Model: ${isEnsemble ? 'WeatherNext 2' : 'High-Res Blend'})`;
-
-        document.getElementById('tempDisplay').innerText = `${curTemp}°C`;
-
-        let listHtml = '';
-        for(let i = 0; i < 24; i++) {
-          const time = h.time[i].split('T')[1];
-          listHtml += `
-            <div class="row">
-              <span><b>${time}</b></span>
-              <span>${temps[i]}°C | Rain: ${rains[i]} mm</span>
-              <span>${winds[i]} km/h</span>
-            </div>`;
-        }
-        document.getElementById('forecastList').innerHTML = listHtml;
-      } catch (err) {
-        document.getElementById('statusTitle').innerText = 'Error loading forecast';
-        document.getElementById('statusDetails').innerText = err.message;
+    function initFx(type) {
+      activeFx = type;
+      particles = [];
+      const count = type === 'rain' ? 85 : (type === 'wind' ? 35 : 0);
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          len: Math.random() * 15 + 10,
+          speed: Math.random() * 8 + 6,
+          opacity: Math.random() * 0.4 + 0.2
+        });
       }
     }
 
-    getForecast();
+    function renderFx() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (activeFx === 'rain') {
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = 1.2;
+        particles.forEach(p => {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x - 2, p.y + p.len);
+          ctx.stroke();
+          p.y += p.speed;
+          if (p.y > canvas.height) { p.y = -20; p.x = Math.random() * canvas.width; }
+        });
+      } else if (activeFx === 'wind') {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1.8;
+        particles.forEach(p => {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + p.len * 2, p.y);
+          ctx.stroke();
+          p.x += p.speed * 1.5;
+          if (p.x > canvas.width) { p.x = -50; p.y = Math.random() * canvas.height; }
+        });
+      }
+      requestAnimationFrame(renderFx);
+    }
+    renderFx();
+
+    async function loadForecast() {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&timezone=auto`;
+
+      try {
+        const res = await fetch(url);
+        globalData = await res.json();
+        
+        const h = globalData.hourly;
+        const curTemp = Math.round(h.temperature_2m[0]);
+        const curRain = h.precipitation[0];
+        const curWind = Math.round(h.wind_speed_10m[0]);
+        const curHum = h.relative_humidity_2m[0];
+
+        // Screen Data
+        document.getElementById('tempDisplay').innerText = `${curTemp}°C`;
+        document.getElementById('mRain').innerText = `${curRain} mm`;
+        document.getElementById('mWind').innerText = `${curWind} km/h`;
+        document.getElementById('mHum').innerText = `${curHum}%`;
+
+        // Weather FX Trigger
+        if (curRain > 0.1) {
+          initFx('rain');
+          document.getElementById('weatherCond').innerText = 'Showers / Rain';
+        } else if (curWind > 18) {
+          initFx('wind');
+          document.getElementById('weatherCond').innerText = 'Breezy Conditions';
+        } else {
+          initFx('clear');
+          document.getElementById('weatherCond').innerText = 'Stable Skies';
+        }
+
+        // Agricultural Spray Logic
+        const sprayBox = document.getElementById('sprayBox');
+        if (curWind < 15 && curRain === 0) {
+          sprayBox.className = 'glass spray-card';
+          document.getElementById('sprayTitle').innerText = 'Spraying Safe';
+          document.getElementById('spraySub').innerText = 'Low drift risk, no imminent washout.';
+          document.getElementById('sprayIcon').innerText = '✅';
+        } else {
+          sprayBox.className = 'glass spray-card warn';
+          document.getElementById('sprayTitle').innerText = 'Caution: Do Not Spray';
+          document.getElementById('spraySub').innerText = curWind >= 15 ? 'High chemical drift (Wind > 15 km/h)' : 'Imminent precipitation washout.';
+          document.getElementById('sprayIcon').innerText = '⚠️';
+        }
+
+        renderLists();
+      } catch (err) {
+        document.getElementById('weatherCond').innerText = 'Offline / Error loading data';
+      }
+    }
+
+    function switchView(tab) {
+      activeTab = tab;
+      document.getElementById('tabHourly').className = `tab ${tab === 'hourly' ? 'active' : ''}`;
+      document.getElementById('tabDaily').className = `tab ${tab === 'daily' ? 'active' : ''}`;
+      renderLists();
+    }
+
+    function renderLists() {
+      if (!globalData) return;
+      const container = document.getElementById('forecastContainer');
+      let html = '';
+
+      if (activeTab === 'hourly') {
+        const h = globalData.hourly;
+        for (let i = 0; i < 24; i++) {
+          const time = h.time[i].split('T')[1];
+          html += `
+            <div class="row">
+              <b>${time}</b>
+              <span>${Math.round(h.temperature_2m[i])}°C</span>
+              <span class="rain-vol">💧 ${h.precipitation[i]} mm</span>
+              <span>💨 ${Math.round(h.wind_speed_10m[i])} km/h</span>
+            </div>`;
+        }
+      } else {
+        const d = globalData.daily;
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for (let i = 0; i < d.time.length; i++) {
+          const dayName = days[new Date(d.time[i]).getDay()];
+          html += `
+            <div class="row">
+              <b>${dayName} <span style="font-size:0.75rem; color:#94a3b8;">${d.time[i].slice(5)}</span></b>
+              <span>${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</span>
+              <span class="rain-vol">💧 ${d.precipitation_sum[i]} mm</span>
+              <span>💨 ${Math.round(d.wind_speed_10m_max[i])} km/h</span>
+            </div>`;
+        }
+      }
+      container.innerHTML = html;
+    }
+
+    loadForecast();
   </script>
 </body>
 </html>
