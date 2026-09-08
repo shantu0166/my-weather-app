@@ -167,19 +167,33 @@
         if (currentIndex === -1) currentIndex = 0;
 
         const curTemp = Math.round(h.temperature_2m[currentIndex]);
-        const curRain = h.precipitation[currentIndex];
-        const curWind = Math.round(h.wind_speed_10m[currentIndex]);
-        const curHum = h.relative_humidity_2m[currentIndex];
+        // Realistic farming thresholds:
+// 1. Trace moisture under 0.2 mm is considered manageable
+// 2. Wind under 15 km/h is safe
+// 3. Humidity between 40% and 80% is optimal
 
-        document.getElementById('tempDisplay').innerText = `${curTemp}°C`;
-        document.getElementById('mRain').innerText = `${curRain} मिमी`;
-        document.getElementById('mWind').innerText = `${curWind} किमी/तास`;
-        document.getElementById('mHum').innerText = `${curHum}%`;
+const isRainSafe = curRain <= 0.2;
+const isWindSafe = curWind <= 14;
+const isHumSafe  = curHum <= 82;
 
-        if (curRain > 0.1) {
-          initFx('rain');
-          document.getElementById('weatherCond').innerText = 'पावसाची शक्यता / सरी';
-        } else if (curWind > 18) {
+const sprayBox = document.getElementById('sprayBox');
+
+if (isRainSafe && isWindSafe && isHumSafe) {
+  sprayBox.className = 'glass spray-card';
+  document.getElementById('sprayTitle').innerText = 'फवारणीसाठी अनुकूल वेळ ✅';
+  document.getElementById('spraySub').innerText = 'हलकी दमट हवा, वारा मर्यादित व पाऊस नाही.';
+  document.getElementById('sprayIcon').innerText = '🌿';
+} else if (isRainSafe && isWindSafe && !isHumSafe) {
+  sprayBox.className = 'glass spray-card warn';
+  document.getElementById('sprayTitle').innerText = 'मध्यम परिस्थिती (आर्द्रता जास्त) ⚠️';
+  document.getElementById('spraySub').innerText = 'हवेत आर्द्रता जास्त (८०%+) असल्याने औषध वाळण्यास वेळ लागेल.';
+  document.getElementById('sprayIcon').innerText = '💧';
+} else {
+  sprayBox.className = 'glass spray-card warn';
+  document.getElementById('sprayTitle').innerText = 'फवारणी टाळा 🚫';
+  document.getElementById('spraySub').innerText = curRain > 0.2 ? 'पावसामुळे औषध वाहून जाण्याची शक्यता.' : 'वाऱ्याचा वेग जास्त (औषध उडण्याचा धोका).';
+  document.getElementById('sprayIcon').innerText = '⚠️';
+}
           initFx('wind');
           document.getElementById('weatherCond').innerText = 'वेगवान वारे';
         } else {
